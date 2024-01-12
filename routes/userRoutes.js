@@ -10,10 +10,17 @@ router.post("/login", authController.login);
 router.post("/signup", authController.signup);
 router.get("/countUsers", authController.protect, authController.countUsers);
 router.get("/profileUserName", userController.getUser);
+router.put(
+  "/profile",
+  userController.uploadUserImage,
+  userController.profileUpdate
+);
+router.route("/getCustomers").get(userController.getCustomers);
+router.route("/:recipientId").get(userController.getChat);
 
 router
   .route("/")
-  .get(authController.protect, userController.getAllUsers)
+  .get(userController.getAllUsers)
   .post(authController.protect, userController.createUser);
 
 router

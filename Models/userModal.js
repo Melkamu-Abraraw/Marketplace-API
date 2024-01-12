@@ -5,31 +5,29 @@ var jwt = require("jsonwebtoken");
 const userSchema = new mongoose.Schema({
   firstName: {
     type: String,
-    required: [true, "A User must have a firstName"],
     trim: true,
   },
   lastName: {
     type: String,
-    required: [true, "A User must have a lastName"],
     trim: true,
   },
-
+  pushToken: {
+    type: String,
+    trim: true,
+  },
   email: {
     type: String,
-    required: [true, "A User must have a email"],
     validate: [validator.isEmail, "Please Provide a email"],
     unique: true,
   },
   password: {
     type: String,
-    required: [true, "A User must have a password"],
     minlength: 8,
     trim: true,
     select: false,
   },
   passwordConfirm: {
     type: String,
-    required: [true, "Please confirm your password"],
     validate: {
       validator: function (el) {
         return el === this.password;
@@ -39,8 +37,16 @@ const userSchema = new mongoose.Schema({
   },
   phoneNumber: {
     type: String,
-    required: [true, "A User must have a phoneNumber"],
     trim: true,
+  },
+  customers: [
+    {
+      type: mongoose.Schema.Types.Mixed,
+      ref: "User",
+    },
+  ],
+  image: {
+    type: String,
   },
   status: {
     type: String,

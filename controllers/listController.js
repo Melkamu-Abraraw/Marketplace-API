@@ -7,7 +7,8 @@ const jwt = require("jsonwebtoken");
 const Notification = require("../Models/Notification");
 const sendPushNotification = require("./notifications");
 const { Expo } = require("expo-server-sdk");
-
+const mongoose = require("mongoose");
+const Chat = require("../Models/chat");
 var ext;
 var filename;
 
@@ -160,7 +161,47 @@ exports.getAllListings = async (req, res) => {
     });
   }
 };
+exports.getUserListings = async (req, res) => {
+  const token = req.headers.authorization.split(" ")[1];
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  const userId = decoded.id;
 
+  try {
+    const Listings = await Listing.find({ user_id: userId });
+    if (Listings.countDocuments === 0) {
+      return res.status(500).send({
+        message: "No files found!",
+      });
+    }
+
+    let productInfos = [];
+    Listings.forEach((doc) => {
+      productInfos.push({
+        image: baseUrl + doc.image,
+        email: doc.email,
+        title: doc.title,
+        price: doc.price,
+        phoneNumber: doc.phoneNumber,
+        id: doc._id,
+        user_id: doc.user_id,
+        description: doc.description,
+      });
+    });
+
+    res.status(200).json({
+      status: "success",
+      results: Listings.length,
+      data: {
+        productInfos,
+      },
+    });
+  } catch (err) {
+    res.status(400).json({
+      status: "fail",
+      msg: err.message,
+    });
+  }
+};
 exports.deleteListing = async (req, res) => {
   try {
     const listId = req.params.id;
@@ -201,8 +242,8 @@ exports.deleteListing = async (req, res) => {
   }
 };
 exports.updateProduct = async (req, res) => {
-  console.log(req.body);
   const imageObject = req.files;
+  console.log(req.body);
   Object.keys(imageObject).forEach((key) => {
     const images = imageObject[key];
 
@@ -280,37 +321,83 @@ exports.pushToken = async (req, res) => {
   }
 };
 
-exports.sendNotification = async (req, res) => {
+exports.sendNotification = async (req, res, next) => {
+  console.log(req.params.id);
   console.log(req.body);
-  const { pushToken, msg } = req.body;
+  const currentUser = await User.findById(req.params.id);
+  const { chat } = req.body;
+  const pushToken = currentUser.pushToken;
   const expo = new Expo();
-  const chunks = expo.chunkPushNotifications([
-    {
-      to: pushToken,
-      title: "Notification From yeneSuq Marketplace",
-      sound: "default",
-      body: msg,
-    },
-  ]);
+  if (pushToken) {
+    const chunks = expo.chunkPushNotifications([
+      {
+        to: pushToken,
+        title: "You've got mail! 📬",
+        sound: "default",
+        body: chat,
+      },
+    ]);
 
-  const sendChunks = async () => {
-    chunks.forEach(async (chunk) => {
-      try {
-        const tickets = await expo.sendPushNotificationsAsync(chunk);
-      } catch (error) {
-        console.log("Error sending chunk", error);
-      }
-    });
-  };
+    const sendChunks = async () => {
+      chunks.forEach(async (chunk) => {
+        try {
+          const tickets = await expo.sendPushNotificationsAsync(chunk);
+        } catch (error) {
+          console.log("Error sending chunk", error);
+        }
+      });
+    };
 
-  await sendChunks();
-  res.status(201).json({
-    status: "success",
-    data: {
-      msg: "succsss",
-    },
-  });
+    await sendChunks();
+  }
+  next();
 };
+exports.sendMessage = async (req, res) => {
+  try {
+    const { recipientId, chatType, chat } = req.body;
+    const token = req.headers.authorization.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const senderId = decoded.id;
+    const senderUser = await User.findById(senderId);
+    const recipientUser = await User.findById(recipientId);
+
+    if (!senderUser || !recipientUser) {
+      throw new Error("Sender or recipient user not found");
+    }
+
+    // Add the senderUser to the recipientUser's friends if not already added
+    if (
+      !recipientUser.customers.some((customer) => customer._id.equals(senderId))
+    ) {
+      recipientUser.customers.push(senderUser);
+      await recipientUser.save();
+    }
+
+    // Add the recipientUser to the senderUser's friends if not already added
+    if (
+      !senderUser.customers.some((customer) => customer._id.equals(recipientId))
+    ) {
+      senderUser.customers.push(recipientUser);
+      await senderUser.save();
+    }
+    console.log(recipientUser);
+
+    const newChat = new Chat({
+      senderId,
+      recipientId,
+      chatType,
+      chat,
+      timestamp: new Date(),
+    });
+
+    await newChat.save();
+    res.status(200).json({ chat: "Chat sent successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
 exports.getToken = async (req, res) => {
   console.log(req.params.id);
   try {
@@ -334,5 +421,6 @@ exports.getToken = async (req, res) => {
     });
   }
 };
+
 const upload = multer({ storage: multerStorage, fileFilter: multerFilter });
 exports.uploadListingImages = upload.fields([{ name: "image", maxCount: 1 }]);

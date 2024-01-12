@@ -1,7 +1,6 @@
 const jwt = require("jsonwebtoken");
 const AppError = require("../utils/appError");
 const User = require("../Models/userModal");
-const Plant = require("../Models/plantModal");
 const { promisify } = require("util");
 
 const util = require("util");
@@ -15,15 +14,17 @@ const signToken = (id) => {
 
 exports.signup = async (req, res, next) => {
   res.set("Access-Control-Allow-Origin", "*");
+  console.log(req.body);
 
   try {
     const newUser = await User.create({
       firstName: req.body.firstName,
       lastName: req.body.lastName,
-      userName: req.body.userName,
       email: req.body.email,
       password: req.body.password,
       passwordConfirm: req.body.passwordConfirm,
+      phoneNumber: req.body.phoneNumber,
+      pushToken: req.body.pushToken,
     });
 
     const token = signToken(newUser._id);
@@ -45,7 +46,6 @@ exports.signup = async (req, res, next) => {
 
 exports.login = async (req, res, next) => {
   const { email, password } = req.body;
-  console.log(req.body);
   if (!email || !password) {
     return next(new AppError("Please provide email and password", 400));
   }
@@ -65,6 +65,7 @@ exports.login = async (req, res, next) => {
   res.status(200).json({
     status: "success",
     token,
+    user,
   });
 };
 exports.adminLogin = async (req, res, next) => {
