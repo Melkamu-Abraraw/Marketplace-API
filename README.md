@@ -1,4 +1,4 @@
-LDDS-Node API
+Marketplace App-Node API
 
 ## 👉 Requirements
 
